@@ -71,32 +71,9 @@ class DataReader(object):
             decode_len = np.zeros([len(batch)])
 
             for i, (seq, nan_seq) in enumerate(zip(batch['data'], batch['is_nan'])):
-
                 rand_len = np.random.randint(max_encode_length - 365 + 1, max_encode_length + 1)
                 x_encode_len = max_encode_length if is_test else rand_len
-
-
-                x = seq[:x_encode_len]
-                n = nan_seq[:x_encode_len]
-                if n[-1] == 1:
-
-                    last = None
-
-                    i = 0
-                    while last is None:
-                        i += 1
-                        if i == 5:
-                            break
-
-                        if n[-i] == 1:
-                            continue
-                        else:
-                            last = x[-i]
-                    x[-1] = last or 0
-
-
-
-                x_encode[i, :x_encode_len] = x#seq[:x_encode_len]
+                x_encode[i, :x_encode_len] = seq[:x_encode_len]
                 is_nan_encode[i, :x_encode_len] = nan_seq[:x_encode_len]
                 encode_len[i] = x_encode_len
                 decode_len[i] = num_decode_steps
