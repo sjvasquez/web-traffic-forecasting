@@ -59,7 +59,7 @@ class DataReader(object):
             allow_smaller_final_batch=is_test
         )
         for batch in batch_gen:
-            num_decode_steps = 65
+            num_decode_steps = 64
             full_seq_len = batch['data'].shape[1]
             max_encode_length = full_seq_len - num_decode_steps if not is_test else full_seq_len
 
@@ -74,7 +74,29 @@ class DataReader(object):
 
                 rand_len = np.random.randint(max_encode_length - 365 + 1, max_encode_length + 1)
                 x_encode_len = max_encode_length if is_test else rand_len
-                x_encode[i, :x_encode_len] = seq[:x_encode_len]
+
+
+                x = seq[:x_encode_len]
+                n = nan_seq[:x_encode_len]
+                if n[-1] == 1:
+
+                    last = None
+
+                    i = 0
+                    while last is None:
+                        i += 1
+                        if i == 5:
+                            break
+
+                        if n[-i] == 1:
+                            continue
+                        else:
+                            last = x[-i]
+                    x[-1] = last or 0
+
+
+
+                x_encode[i, :x_encode_len] = x#seq[:x_encode_len]
                 is_nan_encode[i, :x_encode_len] = nan_seq[:x_encode_len]
                 encode_len[i] = x_encode_len
                 decode_len[i] = num_decode_steps
@@ -197,8 +219,7 @@ class cnn(TFBaseModel):
         return y_hat, conv_inputs[:-1]
 
     def initialize_decode_params(self, x, features):
-        p_placeholder = tf.ones_like(x)
-        x = tf.concat([x, p_placeholder, features], axis=2)
+        x = tf.concat([x, features], axis=2)
 
         inputs = time_distributed_dense_layer(
             inputs=x,
@@ -234,7 +255,7 @@ class cnn(TFBaseModel):
 
         skip_outputs = tf.nn.relu(tf.concat(skip_outputs, axis=2))
         h = time_distributed_dense_layer(skip_outputs, 256, scope='dense-decode-1', activation=tf.nn.relu)
-        y_hat = time_distributed_dense_layer(h, 2, scope='dense-decode-2')
+        y_hat = time_distributed_dense_layer(h, 1, scope='dense-decode-2')
         return y_hat
 
     def decode(self, x, conv_inputs, features):
@@ -272,9 +293,6 @@ class cnn(TFBaseModel):
         # get initial x input
         current_idx = tf.stack([tf.range(tf.shape(self.encode_len)[0]), self.encode_len - 1], axis=1)
         initial_input = tf.gather_nd(x, current_idx)
-
-        initial_p = tf.zeros_like(initial_input)
-        initial_input = tf.concat([initial_input, initial_p], axis=1)
 
         def loop_fn(time, current_input, queues):
             current_features = features_ta.read(time)
@@ -322,7 +340,7 @@ class cnn(TFBaseModel):
 
             next_input = tf.cond(
                 finished,
-                lambda: tf.zeros([batch_size, 2], dtype=tf.float32),
+                lambda: tf.zeros([batch_size, 1], dtype=tf.float32),
                 lambda: y_hat
             )
             next_elements_finished = (time >= self.decode_len - 1)
@@ -357,23 +375,18 @@ class cnn(TFBaseModel):
         y_hat_encode, conv_inputs = self.encode(x, features=self.encode_features)
         self.initialize_decode_params(x, features=self.decode_features)
         y_hat_decode = self.decode(y_hat_encode, conv_inputs, features=self.decode_features)
-
-        y_hat_decode, p_logit = tf.split(y_hat_decode, 2, axis=2)
         y_hat_decode = self.inverse_transform(tf.squeeze(y_hat_decode, 2))
         y_hat_decode = tf.nn.relu(y_hat_decode)
-        p = tf.nn.sigmoid(tf.squeeze(p_logit, 2))
 
         self.labels = self.y_decode
         self.preds = y_hat_decode
-        self.loss = sequence_smape(self.labels, self.preds, p, self.decode_len, self.is_nan_decode)
+        self.loss = sequence_smape(self.labels, self.preds, self.decode_len, self.is_nan_decode)
 
         self.prediction_tensors = {
             'priors': self.x_encode,
             'labels': self.labels,
             'preds': self.preds,
             'page_id': self.page_id,
-            'is_nan_decode': self.is_nan_decode,
-            'is_nan_encode': self.is_nan_encode
         }
 
         return self.loss
@@ -407,7 +420,7 @@ if __name__ == '__main__':
         skip_channels=64,
         dilations=[2**i for i in range(8)]*3,
         filter_widths=[2 for i in range(8)]*3,
-        num_decode_steps=65,
+        num_decode_steps=64,
     )
     nn.fit()
     nn.restore()

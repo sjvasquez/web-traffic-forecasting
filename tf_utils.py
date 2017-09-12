@@ -93,7 +93,7 @@ def shape(tensor, dim=None):
         return tensor.shape.as_list()[dim]
 
 
-def sequence_smape(y, y_hat, p, sequence_lengths, is_nan):
+def sequence_smape(y, y_hat, sequence_lengths, is_nan):
     max_sequence_length = tf.shape(y)[1]
     y = tf.cast(y, tf.float32)
     smape = 2*(tf.abs(y_hat - y) / (tf.abs(y) + tf.abs(y_hat)))

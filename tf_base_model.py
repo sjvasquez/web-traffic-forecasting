@@ -217,7 +217,7 @@ class TFBaseModel(object):
 
             logging.info('num_training_steps reached - ending training')
 
-    def predict(self, chunk_size=1024):
+    def predict(self, chunk_size=512):
         if not os.path.isdir(self.prediction_dir):
             os.makedirs(self.prediction_dir)
 
