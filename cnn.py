@@ -190,7 +190,7 @@ class cnn(TFBaseModel):
             skip_outputs.append(skips)
 
         skip_outputs = tf.nn.relu(tf.concat(skip_outputs, axis=2))
-        h = time_distributed_dense_layer(skip_outputs, 256, scope='dense-encode-1', activation=tf.nn.relu)
+        h = time_distributed_dense_layer(skip_outputs, 128, scope='dense-encode-1', activation=tf.nn.relu)
         y_hat = time_distributed_dense_layer(h, 1, scope='dense-encode-2')
 
         return y_hat, conv_inputs[:-1]
@@ -231,7 +231,7 @@ class cnn(TFBaseModel):
             skip_outputs.append(skips)
 
         skip_outputs = tf.nn.relu(tf.concat(skip_outputs, axis=2))
-        h = time_distributed_dense_layer(skip_outputs, 256, scope='dense-decode-1', activation=tf.nn.relu)
+        h = time_distributed_dense_layer(skip_outputs, 128, scope='dense-decode-1', activation=tf.nn.relu)
         y_hat = time_distributed_dense_layer(h, 1, scope='dense-decode-2')
         return y_hat
 
@@ -393,8 +393,8 @@ if __name__ == '__main__':
         log_interval=10,
         num_validation_batches=1,
         grad_clip=20,
-        residual_channels=64,
-        skip_channels=64,
+        residual_channels=32,
+        skip_channels=32,
         dilations=[2**i for i in range(8)]*3,
         filter_widths=[2 for i in range(8)]*3,
         num_decode_steps=64,
