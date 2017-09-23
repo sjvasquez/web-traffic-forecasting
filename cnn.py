@@ -14,11 +14,20 @@ from tf_utils import (
 class DataReader(object):
 
     def __init__(self, data_dir):
-        data_cols = ['data', 'is_nan', 'page_id', 'project', 'access', 'agent']
+        data_cols = [
+            'data',
+            'is_nan',
+            'page_id',
+            'project',
+            'access',
+            'agent',
+            'test_data',
+            'test_is_nan'
+        ]
         data = [np.load(os.path.join(data_dir, '{}.npy'.format(i))) for i in data_cols]
 
         self.test_df = DataFrame(columns=data_cols, data=data)
-        self.train_df, self.val_df = self.test_df.train_test_split(train_size=0.9)
+        self.train_df, self.val_df = self.test_df.train_test_split(train_size=0.95)
 
         print 'train size', len(self.train_df)
         print 'val size', len(self.val_df)
@@ -46,7 +55,7 @@ class DataReader(object):
         return self.batch_generator(
             batch_size=batch_size,
             df=self.test_df,
-            shuffle=False,
+            shuffle=True,
             num_epochs=1,
             is_test=True
         )
@@ -58,9 +67,11 @@ class DataReader(object):
             num_epochs=num_epochs,
             allow_smaller_final_batch=is_test
         )
+        data_col = 'test_data' if is_test else 'data'
+        is_nan_col = 'test_is_nan' if is_test else 'is_nan'
         for batch in batch_gen:
             num_decode_steps = 64
-            full_seq_len = batch['data'].shape[1]
+            full_seq_len = batch[data_col].shape[1]
             max_encode_length = full_seq_len - num_decode_steps if not is_test else full_seq_len
 
             x_encode = np.zeros([len(batch), max_encode_length])
@@ -70,7 +81,7 @@ class DataReader(object):
             encode_len = np.zeros([len(batch)])
             decode_len = np.zeros([len(batch)])
 
-            for i, (seq, nan_seq) in enumerate(zip(batch['data'], batch['is_nan'])):
+            for i, (seq, nan_seq) in enumerate(zip(batch[data_col], batch[is_nan_col])):
                 rand_len = np.random.randint(max_encode_length - 365 + 1, max_encode_length + 1)
                 x_encode_len = max_encode_length if is_test else rand_len
                 x_encode[i, :x_encode_len] = seq[:x_encode_len]
@@ -99,7 +110,7 @@ class cnn(TFBaseModel):
         skip_channels=32,
         dilations=[2**i for i in range(8)]*3,
         filter_widths=[2 for i in range(8)]*3,
-        num_decode_steps=65,
+        num_decode_steps=64,
         **kwargs
     ):
         self.residual_channels = residual_channels
@@ -147,6 +158,7 @@ class cnn(TFBaseModel):
         decode_idx = tf.tile(tf.expand_dims(tf.range(self.num_decode_steps), 0), (tf.shape(self.y_decode)[0], 1))
         self.decode_features = tf.concat([
             tf.one_hot(decode_idx, self.num_decode_steps),
+            tf.tile(tf.reshape(self.log_x_encode_mean, (-1, 1, 1)), (1, self.num_decode_steps, 1)),
             tf.tile(tf.expand_dims(tf.one_hot(self.project, 9), 1), (1, self.num_decode_steps, 1)),
             tf.tile(tf.expand_dims(tf.one_hot(self.access, 3), 1), (1, self.num_decode_steps, 1)),
             tf.tile(tf.expand_dims(tf.one_hot(self.agent, 2), 1), (1, self.num_decode_steps, 1)),
@@ -380,7 +392,7 @@ if __name__ == '__main__':
         checkpoint_dir=os.path.join(base_dir, 'checkpoints'),
         prediction_dir=os.path.join(base_dir, 'predictions'),
         optimizer='adam',
-        learning_rate=.004,
+        learning_rate=.001,
         batch_size=128,
         num_training_steps=200000,
         early_stopping_steps=5000,

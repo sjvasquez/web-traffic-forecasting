@@ -203,7 +203,6 @@ class TFBaseModel(object):
                             self.restore(best_validation_tstep)
                             logging.info('halving learning rate')
                             self.learning_rate /= 2.0
-                            self.early_stopping_steps /= 2
                             step = best_validation_tstep
                             restarts += 1
 
